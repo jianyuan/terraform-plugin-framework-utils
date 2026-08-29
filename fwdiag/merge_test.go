@@ -11,13 +11,18 @@ func ExampleMerge() {
 	doSomething := func() (*string, diag.Diagnostics) {
 		var diagsInner diag.Diagnostics
 		// add in some errors
-		diagsInner.AddError("Inner Error", "Something went wrong")
+		diagsInner.AddError("Inner Error", "Something else went wrong")
 		return nil, diagsInner
 	}
 
 	var diags diag.Diagnostics
-	diags.AddWarning("Outer Warning", "Something else went wrong")
+	diags.AddWarning("Outer Warning", "Something went wrong")
 	_ = fwdiag.Merge(doSomething())(&diags)
-	fmt.Println(diags)
-	// Output: [{Something else went wrong Outer Warning} {Something went wrong Inner Error}]
+
+	for _, d := range diags {
+		fmt.Printf("[%s] %s: %s\n", d.Severity(), d.Summary(), d.Detail())
+	}
+	// Output:
+	// [Warning] Outer Warning: Something went wrong
+	// [Error] Inner Error: Something else went wrong
 }
