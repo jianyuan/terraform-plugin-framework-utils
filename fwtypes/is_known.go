@@ -1,8 +1,8 @@
 package fwtypes
 
-func IsKnown(v interface {
+func IsKnown(value interface {
 	IsNull() bool
 	IsUnknown() bool
 }) bool {
-	return !v.IsNull() && !v.IsUnknown()
+	return !value.IsNull() && !value.IsUnknown()
 }
