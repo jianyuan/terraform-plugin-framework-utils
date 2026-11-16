@@ -45,6 +45,7 @@ jobs:
               if (scope === "deps") wanted.add("dependencies");
               if (breaking || /^BREAKING[ -]CHANGE:/m.test(pr.body ?? "")) wanted.add("breaking-change");
             }
+            if (pr.user.login === "renovate[bot]") wanted.add("dependencies");
 
             const current = new Set(pr.labels.map((label) => label.name));
             const toAdd = [...wanted].filter((name) => !current.has(name));
