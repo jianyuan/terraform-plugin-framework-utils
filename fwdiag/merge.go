@@ -1,3 +1,5 @@
+// Package fwdiag provides helpers for working with Terraform Plugin Framework
+// diagnostics.
 package fwdiag
 
 import (
