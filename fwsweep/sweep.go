@@ -1,5 +1,16 @@
 // Package fwsweep provides helpers for writing acceptance test sweepers for
 // Terraform Plugin Framework resources.
+//
+// Call Register from an init function or package-level var in a _test.go file,
+// and wire up the sweepers in that package's TestMain:
+//
+//	func TestMain(m *testing.M) {
+//		resource.TestMain(m)
+//	}
+//
+// Then run them with "go test ./... -sweep=all". Use NewResource to delete
+// items through the resource's own Delete method, or implement Sweepable when
+// a direct API call is simpler.
 package fwsweep
 
 import (
