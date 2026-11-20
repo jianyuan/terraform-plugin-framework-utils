@@ -3,12 +3,15 @@ name: Label PR
 on:
   pull_request_target:
     types: [opened, edited, reopened, synchronize]
+  # Labels open PRs and PRs merged since the latest release.
+  workflow_dispatch:
 
 permissions:
+  contents: read
   pull-requests: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || 'backfill' }}
   cancel-in-progress: true
 
 jobs:
@@ -16,46 +19,6 @@ jobs:
     name: Label PR
     runs-on: ubuntu-latest
     steps:
-      # Labels the PR from its Conventional Commit title, e.g. "feat(fwdiag)!: ...".
-      # Only reads the event payload, so it is safe to run on pull_request_target.
-      - uses: actions/github-script@v9
-        with:
-          script: |
-            const typeLabels = {
-              feat: "enhancement",
-              fix: "bug",
-              docs: "documentation",
-              build: "maintenance",
-              chore: "maintenance",
-              ci: "maintenance",
-              perf: "maintenance",
-              refactor: "maintenance",
-              revert: "maintenance",
-              style: "maintenance",
-              test: "maintenance",
-            };
-            const managed = new Set([...Object.values(typeLabels), "breaking-change", "dependencies"]);
-
-            const pr = context.payload.pull_request;
-            const match = pr.title.match(/^(\w+)(?:\(([^)]*)\))?(!)?:/);
-            const wanted = new Set();
-            if (match) {
-              const [, type, scope, breaking] = match;
-              if (typeLabels[type]) wanted.add(typeLabels[type]);
-              if (scope === "deps") wanted.add("dependencies");
-              if (breaking || /^BREAKING[ -]CHANGE:/m.test(pr.body ?? "")) wanted.add("breaking-change");
-            }
-            if (pr.user.login === "renovate[bot]") wanted.add("dependencies");
-
-            const current = new Set(pr.labels.map((label) => label.name));
-            const toAdd = [...wanted].filter((name) => !current.has(name));
-            const toRemove = [...current].filter((name) => managed.has(name) && !wanted.has(name));
-
-            const issue = { owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number };
-            if (toAdd.length > 0) {
-              await github.rest.issues.addLabels({ ...issue, labels: toAdd });
-            }
-            for (const name of toRemove) {
-              await github.rest.issues.removeLabel({ ...issue, name });
-            }
-            core.info(`Added: ${toAdd.join(", ") || "none"}; removed: ${toRemove.join(", ") || "none"}`);
+      # Reads .github/auto-labeler.yml through the API and never checks out PR code, so it is safe
+      # to run on pull_request_target.
+      - uses: jianyuan/auto-labeler-action@v1
