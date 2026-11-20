@@ -28,6 +28,14 @@ If you find this library useful, please consider supporting me through GitHub Sp
 go get github.com/jianyuan/terraform-plugin-framework-utils
 ```
 
+### Agent skill
+
+The repo ships an [agent skill](https://agentskills.io) that tells coding agents which helper to use and what to watch out for. Install it with the [`skills`](https://github.com/vercel-labs/skills) CLI, which supports Claude Code, Codex, Cursor and other agents:
+
+```sh
+npx skills add jianyuan/terraform-plugin-framework-utils
+```
+
 ## Documentation
 
 The API reference below is generated from the Go doc comments with [gomarkdoc](https://github.com/princjef/gomarkdoc). Run `make generate` to update it.
@@ -57,6 +65,39 @@ func ExpectLiteralError(text string) *regexp.Regexp
 ```
 
 ExpectLiteralError returns a regular expression that matches text literally, allowing any whitespace between words. Terraform wraps long error messages across lines, so this is useful with resource.TestStep.ExpectError.
+
+<details><summary>Example</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/jianyuan/terraform-plugin-framework-utils/fwacctest"
+)
+
+func main() {
+	re := fwacctest.ExpectLiteralError("Invalid value (must be > 0)")
+
+	// Terraform wrapped the message across lines.
+	fmt.Println(re.MatchString("Error: Invalid value (must\nbe > 0)"))
+	fmt.Println(re.MatchString("Error: Invalid value must be > 0"))
+}
+```
+
+#### Output
+
+```
+true
+false
+```
+
+</p>
+</details>
 
 # fwdiag
 
@@ -194,6 +235,16 @@ import "github.com/jianyuan/terraform-plugin-framework-utils/fwsweep"
 
 Package fwsweep provides helpers for writing acceptance test sweepers for Terraform Plugin Framework resources.
 
+Call Register from an init function or package\-level var in a \_test.go file, and wire up the sweepers in that package's TestMain:
+
+```
+func TestMain(m *testing.M) {
+	resource.TestMain(m)
+}
+```
+
+Then run them with "go test ./... \-sweep=all". Use NewResource to delete items through the resource's own Delete method, or implement Sweepable when a direct API call is simpler.
+
 ## Index
 
 - [Constants](<#constants>)
@@ -224,8 +275,37 @@ func Register[P any](name string, providerData func() P, fn SweeperFn[P], opts .
 
 Register adds a test sweeper named name. When the sweeper runs, it calls providerData to obtain the provider data, collects the items with fn and deletes them with Sweep.
 
+<details><summary>Example</summary>
+<p>
+
+Register a sweeper in a \_test.go file of the provider package, and call resource.TestMain from TestMain so that "go test \-sweep=all" runs it.
+
+```go
+fwsweep.Register("example_project", func() *apiClient {
+	// Build the same client the provider's Configure method passes as
+	// provider data, usually from environment variables.
+	return &apiClient{}
+}, func(ctx context.Context, client *apiClient) ([]fwsweep.Sweepable, error) {
+	projects, err := client.ListProjects(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var sweepables []fwsweep.Sweepable
+	for _, p := range projects {
+		sweepables = append(sweepables, fwsweep.NewResource(newProjectResource, client, map[string]any{
+			"id": p.ID,
+		}))
+	}
+	return sweepables, nil
+}, fwsweep.WithDependencies("example_project_member"))
+```
+
+</p>
+</details>
+
 <a name="Sweep"></a>
-## func [Sweep](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L57>)
+## func [Sweep](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L68>)
 
 ```go
 func Sweep(ctx context.Context, sweepables []Sweepable, opts ...Option) error
@@ -233,8 +313,36 @@ func Sweep(ctx context.Context, sweepables []Sweepable, opts ...Option) error
 
 Sweep deletes all sweepables concurrently and returns the joined errors of any that failed. A failure does not stop the remaining deletes.
 
+<details><summary>Example</summary>
+<p>
+
+
+
+```go
+var deleted atomic.Int32
+sweepables := []fwsweep.Sweepable{
+	sweepableFunc(func(context.Context) error { deleted.Add(1); return nil }),
+	sweepableFunc(func(context.Context) error { return fmt.Errorf("project 2: not found") }),
+	sweepableFunc(func(context.Context) error { deleted.Add(1); return nil }),
+}
+
+err := fwsweep.Sweep(context.Background(), sweepables, fwsweep.WithConcurrency(2))
+fmt.Println(deleted.Load(), err)
+// Output:
+// 2 project 2: not found
+```
+
+#### Output
+
+```
+2 project 2: not found
+```
+
+</p>
+</details>
+
 <a name="Option"></a>
-## type [Option](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L29>)
+## type [Option](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L40>)
 
 Option configures Sweep and Register.
 
@@ -243,7 +351,7 @@ type Option func(*options)
 ```
 
 <a name="WithConcurrency"></a>
-### func [WithConcurrency](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L33>)
+### func [WithConcurrency](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L44>)
 
 ```go
 func WithConcurrency(n int) Option
@@ -252,7 +360,7 @@ func WithConcurrency(n int) Option
 WithConcurrency sets the maximum number of concurrent deletes. Values below 1 mean no limit.
 
 <a name="WithDependencies"></a>
-### func [WithDependencies](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L41>)
+### func [WithDependencies](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L52>)
 
 ```go
 func WithDependencies(dependencies ...string) Option
@@ -261,7 +369,7 @@ func WithDependencies(dependencies ...string) Option
 WithDependencies sets the names of sweepers that must run before this one. It only applies to Register.
 
 <a name="Sweepable"></a>
-## type [Sweepable](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L16-L18>)
+## type [Sweepable](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L27-L29>)
 
 Sweepable is a single item that can be deleted by a sweeper.
 
@@ -283,7 +391,7 @@ NewResource returns a Sweepable that deletes a resource by calling its Delete me
 This only suits resources whose Delete reads nothing but root attributes from the state: private state and identity are not populated.
 
 <a name="SweeperFn"></a>
-## type [SweeperFn](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L21>)
+## type [SweeperFn](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwsweep/sweep.go#L32>)
 
 SweeperFn collects the items to sweep using the given provider data.
 
