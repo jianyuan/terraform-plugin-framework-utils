@@ -19,7 +19,9 @@ The doc comments are the source of truth, so don't rely on this file for signatu
 | Check that a value is neither null nor unknown before using it | `fwtypes.IsKnown` |
 | `ExpectError` in an acceptance test where Terraform wraps the message across lines | `fwacctest.ExpectLiteralError` |
 | Delete leftover test resources | `fwsweep.Register` with `fwsweep.NewResource` |
+| Generate attribute descriptions from plan modifiers, validators and defaults | `fwschema.Describe` with `fwschema.DefaultSteps()...` |
 | Prefix "(Force new)" and list `OneOf` values in attribute descriptions | `fwschema.Describe` with `fwschema.ForceNew` (or `fwschema.ForceNewLabel` for custom labels) and `fwschema.Enum` (or `fwschema.EnumLabel`) |
+| Add defaults, minimum sizes and path rules (also requires, conflicts with, exactly one of, at least one of) to attribute descriptions | `fwschema.Default`, `fwschema.SizeAtLeast`, `fwschema.AlsoRequires`, `fwschema.ConflictsWith`, `fwschema.ExactlyOneOf` and `fwschema.AtLeastOneOf` in `fwschema.Describe` |
 
 ## Rules
 

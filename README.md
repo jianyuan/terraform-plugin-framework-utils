@@ -242,14 +242,21 @@ Package fwschema provides helpers for building Terraform Plugin Framework schema
 - [type Describer](<#Describer>)
 - [type Field](<#Field>)
 - [type Step](<#Step>)
+  - [func AlsoRequires\(\) Step](<#AlsoRequires>)
+  - [func AtLeastOneOf\(\) Step](<#AtLeastOneOf>)
+  - [func ConflictsWith\(\) Step](<#ConflictsWith>)
+  - [func Default\(\) Step](<#Default>)
+  - [func DefaultSteps\(\) \[\]Step](<#DefaultSteps>)
   - [func Enum\(\) Step](<#Enum>)
   - [func EnumLabel\(markdown, plain string\) Step](<#EnumLabel>)
+  - [func ExactlyOneOf\(\) Step](<#ExactlyOneOf>)
   - [func ForceNew\(\) Step](<#ForceNew>)
   - [func ForceNewLabel\(markdown, plain string\) Step](<#ForceNewLabel>)
+  - [func SizeAtLeast\(\) Step](<#SizeAtLeast>)
 
 
 <a name="Describe"></a>
-## func [Describe](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L39>)
+## func [Describe](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L42>)
 
 ```go
 func Describe[S any](ctx context.Context, s S, steps ...Step) S
@@ -306,7 +313,7 @@ func main() {
 </details>
 
 <a name="Describer"></a>
-## type [Describer](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L13-L15>)
+## type [Describer](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L14-L16>)
 
 Describer is implemented by plan modifiers and validators.
 
@@ -317,7 +324,7 @@ type Describer interface {
 ```
 
 <a name="Field"></a>
-## type [Field](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L18-L26>)
+## type [Field](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L19-L29>)
 
 Field is the part of an attribute or block that a [Step](<#Step>) reads and edits.
 
@@ -330,11 +337,13 @@ type Field struct {
     Markdown      bool
     PlanModifiers []Describer
     Validators    []Describer
+    // Default is the attribute's Default, or nil if it has none.
+    Default Describer
 }
 ```
 
 <a name="Step"></a>
-## type [Step](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L29>)
+## type [Step](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L32>)
 
 Step edits one field. Steps run in the order they are passed to [Describe](<#Describe>).
 
@@ -342,17 +351,165 @@ Step edits one field. Steps run in the order they are passed to [Describe](<#Des
 type Step func(ctx context.Context, f *Field)
 ```
 
+<a name="AlsoRequires"></a>
+### func [AlsoRequires](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L272>)
+
+```go
+func AlsoRequires() Step
+```
+
+AlsoRequires appends "Also requires: \`a\`, \`b\`." to fields that use an AlsoRequires validator from terraform\-plugin\-framework\-validators.
+
+<a name="AtLeastOneOf"></a>
+### func [AtLeastOneOf](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L298>)
+
+```go
+func AtLeastOneOf() Step
+```
+
+AtLeastOneOf appends "At least one of this attribute or \`a\` must be set." to fields that use an AtLeastOneOf validator from terraform\-plugin\-framework\-validators.
+
+<a name="ConflictsWith"></a>
+### func [ConflictsWith](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L280>)
+
+```go
+func ConflictsWith() Step
+```
+
+ConflictsWith appends "Conflicts with: \`a\`, \`b\`." to fields that use a ConflictsWith validator from terraform\-plugin\-framework\-validators.
+
+<a name="Default"></a>
+### func [Default](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L250>)
+
+```go
+func Default() Step
+```
+
+Default appends "Defaults to \`x\`." to fields with a static Default from the framework's default packages, such as stringdefault.StaticString.
+
+<details><summary>Example</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/jianyuan/terraform-plugin-framework-utils/fwschema"
+)
+
+func main() {
+	ctx := context.Background()
+	s := fwschema.Describe(ctx, schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"retention": schema.Int64Attribute{
+				MarkdownDescription: "Days to keep logs.",
+				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(30),
+				Validators:          []validator.Int64{int64validator.ConflictsWith(path.MatchRoot("archive"))},
+			},
+		},
+	}, fwschema.Default(), fwschema.ConflictsWith())
+
+	fmt.Println(s.Attributes["retention"].GetMarkdownDescription())
+}
+```
+
+#### Output
+
+```
+Days to keep logs. Defaults to `30`. Conflicts with: `archive`.
+```
+
+</p>
+</details>
+
+<a name="DefaultSteps"></a>
+### func [DefaultSteps](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L346>)
+
+```go
+func DefaultSteps() []Step
+```
+
+DefaultSteps returns every step in this package, in an order that reads well: valid values, size, default, then the path rules. ForceNew runs last so an empty description doesn't get a period after "\(Force new\)".
+
+```
+resp.Schema = fwschema.Describe(ctx, schema.Schema{...}, fwschema.DefaultSteps()...)
+```
+
+<details><summary>Example</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/jianyuan/terraform-plugin-framework-utils/fwschema"
+)
+
+func main() {
+	ctx := context.Background()
+	s := fwschema.Describe(ctx, schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"region": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Default:       stringdefault.StaticString("us"),
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.OneOf("us", "eu"),
+					stringvalidator.ConflictsWith(path.MatchRoot("zone")),
+				},
+			},
+		},
+	}, fwschema.DefaultSteps()...)
+
+	fmt.Println(s.Attributes["region"].GetMarkdownDescription())
+}
+```
+
+#### Output
+
+```
+<span style="color:red">(Force new)</span> Valid values: `us`, `eu`. Defaults to `us`. Conflicts with: `zone`.
+```
+
+</p>
+</details>
+
 <a name="Enum"></a>
-### func [Enum](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L151>)
+### func [Enum](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L159>)
 
 ```go
 func Enum() Step
 ```
 
-Enum appends "Valid values: \`a\`, \`b\`." to fields that use a OneOf or OneOfCaseInsensitive validator from terraform\-plugin\-framework\-validators. The description gets exactly one period before the label, unless it is empty or ends with "\!" or "?". Use [EnumLabel](<#EnumLabel>) to change the label.
+Enum appends "Valid values: \`a\`, \`b\`." to fields that use a OneOf or OneOfCaseInsensitive validator from terraform\-plugin\-framework\-validators, including one wrapped in an element validator such as listvalidator.ValueStringsAre. The description gets exactly one period before the label, unless it is empty or ends with "\!" or "?". Use [EnumLabel](<#EnumLabel>) to change the label.
 
 <a name="EnumLabel"></a>
-### func [EnumLabel](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L157>)
+### func [EnumLabel](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L165>)
 
 ```go
 func EnumLabel(markdown, plain string) Step
@@ -404,8 +561,17 @@ Pricing tier. Allowed: `free`, `pro`.
 </p>
 </details>
 
+<a name="ExactlyOneOf"></a>
+### func [ExactlyOneOf](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L289>)
+
+```go
+func ExactlyOneOf() Step
+```
+
+ExactlyOneOf appends "Exactly one of this attribute or \`a\` must be set." to fields that use an ExactlyOneOf validator from terraform\-plugin\-framework\-validators.
+
 <a name="ForceNew"></a>
-### func [ForceNew](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L124>)
+### func [ForceNew](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L130>)
 
 ```go
 func ForceNew() Step
@@ -414,7 +580,7 @@ func ForceNew() Step
 ForceNew prepends a red "\(Force new\)" to the MarkdownDescription, and a plain "\(Force new\)" to the Description, of fields that use a RequiresReplace or RequiresReplaceIfConfigured plan modifier. RequiresReplaceIf is not detected because its description is provider\-defined. Use [ForceNewLabel](<#ForceNewLabel>) to change the labels.
 
 <a name="ForceNewLabel"></a>
-### func [ForceNewLabel](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L130>)
+### func [ForceNewLabel](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L136>)
 
 ```go
 func ForceNewLabel(markdown, plain string) Step
@@ -461,6 +627,64 @@ func main() {
 ```
 **Forces replacement.** Name of the bucket.
 Forces replacement. Name of the bucket.
+```
+
+</p>
+</details>
+
+<a name="SizeAtLeast"></a>
+### func [SizeAtLeast](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L227>)
+
+```go
+func SizeAtLeast() Step
+```
+
+SizeAtLeast appends "Must contain at least N elements." to fields that use a SizeAtLeast validator from the listvalidator, setvalidator or mapvalidator packages.
+
+<details><summary>Example</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jianyuan/terraform-plugin-framework-utils/fwschema"
+)
+
+func main() {
+	ctx := context.Background()
+	s := fwschema.Describe(ctx, schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"tags": schema.ListAttribute{
+				ElementType:         types.StringType,
+				MarkdownDescription: "Tags to apply",
+				Optional:            true,
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+					listvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("owner")),
+				},
+			},
+		},
+	}, fwschema.SizeAtLeast(), fwschema.AlsoRequires())
+
+	fmt.Println(s.Attributes["tags"].GetMarkdownDescription())
+}
+```
+
+#### Output
+
+```
+Tags to apply. Must contain at least 1 element. Also requires: `owner`.
 ```
 
 </p>
