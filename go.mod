@@ -4,6 +4,7 @@ go 1.27
 
 require (
 	github.com/hashicorp/terraform-plugin-framework v1.19.0
+	github.com/hashicorp/terraform-plugin-framework-validators v0.19.0
 	github.com/hashicorp/terraform-plugin-go v0.31.0
 	github.com/hashicorp/terraform-plugin-testing v1.16.0
 	golang.org/x/sync v0.25.0
@@ -66,6 +67,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
+	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/oklog/run v1.2.0 // indirect
 	github.com/pelletier/go-toml v1.9.1 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
