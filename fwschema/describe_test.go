@@ -267,3 +267,25 @@ func TestDefaultAndPathSteps(t *testing.T) {
 		}
 	}
 }
+
+func ExampleDefaultSteps() {
+	ctx := context.Background()
+	s := fwschema.Describe(ctx, schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"region": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Default:       stringdefault.StaticString("us"),
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.OneOf("us", "eu"),
+					stringvalidator.ConflictsWith(path.MatchRoot("zone")),
+				},
+			},
+		},
+	}, fwschema.DefaultSteps()...)
+
+	fmt.Println(s.Attributes["region"].GetMarkdownDescription())
+	// Output:
+	// <span style="color:red">(Force new)</span> Valid values: `us`, `eu`. Defaults to `us`. Conflicts with: `zone`.
+}

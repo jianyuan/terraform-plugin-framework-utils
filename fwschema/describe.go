@@ -141,7 +141,7 @@ func ForceNewLabel(markdown, plain string) Step {
 				if f.Markdown {
 					label = markdown
 				}
-				f.Description = label + " " + f.Description
+				f.Description = label + " " + strings.TrimLeft(f.Description, " ")
 				return
 			}
 		}
@@ -196,7 +196,7 @@ const elementPrefix = "element value must satisfy all validations: "
 func parseOneOf(desc string) ([]string, bool) {
 	if inner, ok := strings.CutPrefix(desc, elementPrefix); ok {
 		// shortcut: splits on " + ", so a value containing " + " breaks detection; parse properly if that comes up.
-		for _, part := range strings.Split(inner, " + ") {
+		for part := range strings.SplitSeq(inner, " + ") {
 			if values, ok := parseOneOf(part); ok {
 				return values, true
 			}
@@ -336,4 +336,22 @@ func joinOr(items []string) string {
 		return items[0]
 	}
 	return strings.Join(items[:len(items)-1], ", ") + " or " + items[len(items)-1]
+}
+
+// DefaultSteps returns every step in this package, in an order that reads
+// well: valid values, size, default, then the path rules. ForceNew runs last
+// so an empty description doesn't get a period after "(Force new)".
+//
+//	resp.Schema = fwschema.Describe(ctx, schema.Schema{...}, fwschema.DefaultSteps()...)
+func DefaultSteps() []Step {
+	return []Step{
+		Enum(),
+		SizeAtLeast(),
+		Default(),
+		AlsoRequires(),
+		ConflictsWith(),
+		ExactlyOneOf(),
+		AtLeastOneOf(),
+		ForceNew(),
+	}
 }

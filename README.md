@@ -246,6 +246,7 @@ Package fwschema provides helpers for building Terraform Plugin Framework schema
   - [func AtLeastOneOf\(\) Step](<#AtLeastOneOf>)
   - [func ConflictsWith\(\) Step](<#ConflictsWith>)
   - [func Default\(\) Step](<#Default>)
+  - [func DefaultSteps\(\) \[\]Step](<#DefaultSteps>)
   - [func Enum\(\) Step](<#Enum>)
   - [func EnumLabel\(markdown, plain string\) Step](<#EnumLabel>)
   - [func ExactlyOneOf\(\) Step](<#ExactlyOneOf>)
@@ -428,6 +429,71 @@ func main() {
 
 ```
 Days to keep logs. Defaults to `30`. Conflicts with: `archive`.
+```
+
+</p>
+</details>
+
+<a name="DefaultSteps"></a>
+### func [DefaultSteps](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L346>)
+
+```go
+func DefaultSteps() []Step
+```
+
+DefaultSteps returns every step in this package, in an order that reads well: valid values, size, default, then the path rules. ForceNew runs last so an empty description doesn't get a period after "\(Force new\)".
+
+```
+resp.Schema = fwschema.Describe(ctx, schema.Schema{...}, fwschema.DefaultSteps()...)
+```
+
+<details><summary>Example</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/jianyuan/terraform-plugin-framework-utils/fwschema"
+)
+
+func main() {
+	ctx := context.Background()
+	s := fwschema.Describe(ctx, schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"region": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Default:       stringdefault.StaticString("us"),
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.OneOf("us", "eu"),
+					stringvalidator.ConflictsWith(path.MatchRoot("zone")),
+				},
+			},
+		},
+	}, fwschema.DefaultSteps()...)
+
+	fmt.Println(s.Attributes["region"].GetMarkdownDescription())
+}
+```
+
+#### Output
+
+```
+<span style="color:red">(Force new)</span> Valid values: `us`, `eu`. Defaults to `us`. Conflicts with: `zone`.
 ```
 
 </p>
