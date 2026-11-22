@@ -19,6 +19,7 @@ If you find this library useful, please consider supporting me through GitHub Sp
 | --- | --- |
 | [`fwacctest`](#fwacctest) | Helpers for writing acceptance tests. |
 | [`fwdiag`](#fwdiag) | Helpers for merging, formatting and converting diagnostics. |
+| [`fwschema`](#fwschema) | Pipeline that adds "(Force new)" and valid values to attribute descriptions. |
 | [`fwsweep`](#fwsweep) | Helpers for writing acceptance test sweepers. |
 | [`fwtypes`](#fwtypes) | Helpers for working with attribute values. |
 
@@ -222,6 +223,244 @@ func main() {
 ```
 [Warning] Outer Warning: Something went wrong
 [Error] Inner Error: Something else went wrong
+```
+
+</p>
+</details>
+
+# fwschema
+
+```go
+import "github.com/jianyuan/terraform-plugin-framework-utils/fwschema"
+```
+
+Package fwschema provides helpers for building Terraform Plugin Framework schemas.
+
+## Index
+
+- [func Describe\[S any\]\(ctx context.Context, s S, steps ...Step\) S](<#Describe>)
+- [type Describer](<#Describer>)
+- [type Field](<#Field>)
+- [type Step](<#Step>)
+  - [func Enum\(\) Step](<#Enum>)
+  - [func EnumLabel\(markdown, plain string\) Step](<#EnumLabel>)
+  - [func ForceNew\(\) Step](<#ForceNew>)
+  - [func ForceNewLabel\(markdown, plain string\) Step](<#ForceNewLabel>)
+
+
+<a name="Describe"></a>
+## func [Describe](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L39>)
+
+```go
+func Describe[S any](ctx context.Context, s S, steps ...Step) S
+```
+
+Describe runs steps on every attribute and block in s, including nested ones, and returns the updated schema. s is a resource, data source, ephemeral resource or provider schema. The schema's own description is left alone.
+
+The steps run once on MarkdownDescription and, if it is set, once on Description. An empty MarkdownDescription starts from Description, so attributes that only set Description still get a MarkdownDescription.
+
+<details><summary>Example</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/jianyuan/terraform-plugin-framework-utils/fwschema"
+)
+
+func main() {
+	ctx := context.Background()
+	s := fwschema.Describe(ctx, schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"region": schema.StringAttribute{
+				MarkdownDescription: "Region to deploy to.",
+				Required:            true,
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators:          []validator.String{stringvalidator.OneOf("us", "eu")},
+			},
+		},
+	}, fwschema.ForceNew(), fwschema.Enum())
+
+	fmt.Println(s.Attributes["region"].GetMarkdownDescription())
+}
+```
+
+#### Output
+
+```
+<span style="color:red">(Force new)</span> Region to deploy to. Valid values: `us`, `eu`.
+```
+
+</p>
+</details>
+
+<a name="Describer"></a>
+## type [Describer](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L13-L15>)
+
+Describer is implemented by plan modifiers and validators.
+
+```go
+type Describer interface {
+    Description(ctx context.Context) string
+}
+```
+
+<a name="Field"></a>
+## type [Field](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L18-L26>)
+
+Field is the part of an attribute or block that a [Step](<#Step>) reads and edits.
+
+```go
+type Field struct {
+    // Description is written back to the attribute's Description or
+    // MarkdownDescription.
+    Description string
+    // Markdown reports whether Description is the MarkdownDescription.
+    Markdown      bool
+    PlanModifiers []Describer
+    Validators    []Describer
+}
+```
+
+<a name="Step"></a>
+## type [Step](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L29>)
+
+Step edits one field. Steps run in the order they are passed to [Describe](<#Describe>).
+
+```go
+type Step func(ctx context.Context, f *Field)
+```
+
+<a name="Enum"></a>
+### func [Enum](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L151>)
+
+```go
+func Enum() Step
+```
+
+Enum appends "Valid values: \`a\`, \`b\`." to fields that use a OneOf or OneOfCaseInsensitive validator from terraform\-plugin\-framework\-validators. The description gets exactly one period before the label, unless it is empty or ends with "\!" or "?". Use [EnumLabel](<#EnumLabel>) to change the label.
+
+<a name="EnumLabel"></a>
+### func [EnumLabel](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L157>)
+
+```go
+func EnumLabel(markdown, plain string) Step
+```
+
+EnumLabel is [Enum](<#Enum>) with custom labels for the MarkdownDescription and the Description.
+
+<details><summary>Example</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/jianyuan/terraform-plugin-framework-utils/fwschema"
+)
+
+func main() {
+	ctx := context.Background()
+	s := fwschema.Describe(ctx, schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"tier": schema.StringAttribute{
+				Description: "Pricing tier.",
+				Validators:  []validator.String{stringvalidator.OneOf("free", "pro")},
+			},
+		},
+	}, fwschema.EnumLabel("**Allowed:**", "Allowed:"))
+
+	fmt.Println(s.Attributes["tier"].GetMarkdownDescription())
+	fmt.Println(s.Attributes["tier"].GetDescription())
+}
+```
+
+#### Output
+
+```
+Pricing tier. **Allowed:** `free`, `pro`.
+Pricing tier. Allowed: `free`, `pro`.
+```
+
+</p>
+</details>
+
+<a name="ForceNew"></a>
+### func [ForceNew](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L124>)
+
+```go
+func ForceNew() Step
+```
+
+ForceNew prepends a red "\(Force new\)" to the MarkdownDescription, and a plain "\(Force new\)" to the Description, of fields that use a RequiresReplace or RequiresReplaceIfConfigured plan modifier. RequiresReplaceIf is not detected because its description is provider\-defined. Use [ForceNewLabel](<#ForceNewLabel>) to change the labels.
+
+<a name="ForceNewLabel"></a>
+### func [ForceNewLabel](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L130>)
+
+```go
+func ForceNewLabel(markdown, plain string) Step
+```
+
+ForceNewLabel is [ForceNew](<#ForceNew>) with custom labels for the MarkdownDescription and the Description.
+
+<details><summary>Example</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/jianyuan/terraform-plugin-framework-utils/fwschema"
+)
+
+func main() {
+	ctx := context.Background()
+	s := fwschema.Describe(ctx, schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"name": schema.StringAttribute{
+				Description:   "Name of the bucket.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+			},
+		},
+	}, fwschema.ForceNewLabel("**Forces replacement.**", "Forces replacement."))
+
+	fmt.Println(s.Attributes["name"].GetMarkdownDescription())
+	fmt.Println(s.Attributes["name"].GetDescription())
+}
+```
+
+#### Output
+
+```
+**Forces replacement.** Name of the bucket.
+Forces replacement. Name of the bucket.
 ```
 
 </p>
