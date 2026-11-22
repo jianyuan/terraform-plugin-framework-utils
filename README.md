@@ -343,16 +343,16 @@ type Step func(ctx context.Context, f *Field)
 ```
 
 <a name="Enum"></a>
-### func [Enum](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L150>)
+### func [Enum](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L151>)
 
 ```go
 func Enum() Step
 ```
 
-Enum appends "Valid values: \`a\`, \`b\`." to fields that use a OneOf or OneOfCaseInsensitive validator from terraform\-plugin\-framework\-validators. Use [EnumLabel](<#EnumLabel>) to change the label.
+Enum appends "Valid values: \`a\`, \`b\`." to fields that use a OneOf or OneOfCaseInsensitive validator from terraform\-plugin\-framework\-validators. The description gets exactly one period before the label, unless it is empty or ends with "\!" or "?". Use [EnumLabel](<#EnumLabel>) to change the label.
 
 <a name="EnumLabel"></a>
-### func [EnumLabel](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L156>)
+### func [EnumLabel](<https://github.com/jianyuan/terraform-plugin-framework-utils/blob/main/fwschema/describe.go#L157>)
 
 ```go
 func EnumLabel(markdown, plain string) Step

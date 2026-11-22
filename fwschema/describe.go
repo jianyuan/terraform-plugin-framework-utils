@@ -146,7 +146,8 @@ const oneOfPrefix = "value must be one of: "
 
 // Enum appends "Valid values: `a`, `b`." to fields that use a OneOf or
 // OneOfCaseInsensitive validator from terraform-plugin-framework-validators.
-// Use [EnumLabel] to change the label.
+// The description gets exactly one period before the label, unless it is
+// empty or ends with "!" or "?". Use [EnumLabel] to change the label.
 func Enum() Step {
 	return EnumLabel("Valid values:", "Valid values:")
 }
@@ -165,10 +166,19 @@ func EnumLabel(markdown, plain string) Step {
 			if f.Markdown {
 				label = markdown
 			}
-			f.Description += " " + label + " `" + strings.Join(values, "`, `") + "`."
+			f.Description = endSentence(f.Description) + " " + label + " `" + strings.Join(values, "`, `") + "`."
 			return
 		}
 	}
+}
+
+// endSentence trims trailing spaces and periods, then adds one period.
+func endSentence(s string) string {
+	s = strings.TrimRight(s, ". \t\n")
+	if s == "" || strings.HasSuffix(s, "!") || strings.HasSuffix(s, "?") {
+		return s
+	}
+	return s + "."
 }
 
 // parseOneOf parses `value must be one of: ["a" "b"]`.

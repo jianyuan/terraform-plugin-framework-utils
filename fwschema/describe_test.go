@@ -101,6 +101,16 @@ func TestDescribe(t *testing.T) {
 			},
 		},
 	}
+	for _, desc := range []string{"Size", "Size..", "Size. \n"} {
+		in.Attributes[desc] = schema.StringAttribute{
+			MarkdownDescription: desc,
+			Validators:          []validator.String{stringvalidator.OneOf("a")},
+		}
+	}
+	in.Attributes["question"] = schema.StringAttribute{
+		MarkdownDescription: "Which one?",
+		Validators:          []validator.String{stringvalidator.OneOf("a")},
+	}
 	out := fwschema.Describe(ctx, in, fwschema.ForceNew(), fwschema.Enum())
 
 	configured := out.Attributes["configured"]
@@ -115,6 +125,10 @@ func TestDescribe(t *testing.T) {
 		{"nested", nested.GetMarkdownDescription(), "Valid values: `a\"b`, `c`."},
 		{"nested plain stays empty", nested.GetDescription(), ""},
 		{"block", single.GetMarkdownDescription(), "<span style=\"color:red\">(Force new)</span> ID."},
+		{"adds period", out.Attributes["Size"].GetMarkdownDescription(), "Size. Valid values: `a`."},
+		{"trims periods", out.Attributes["Size.."].GetMarkdownDescription(), "Size. Valid values: `a`."},
+		{"trims whitespace", out.Attributes["Size. \n"].GetMarkdownDescription(), "Size. Valid values: `a`."},
+		{"keeps question mark", out.Attributes["question"].GetMarkdownDescription(), "Which one? Valid values: `a`."},
 		{"input not mutated", in.Attributes["configured"].GetMarkdownDescription(), ""},
 	} {
 		if tc.got != tc.want {
